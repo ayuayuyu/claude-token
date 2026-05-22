@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  REPO: ayuayuyu/claude-token
+
+jobs:
+  build:
+    name: Build macOS (universal)
+    runs-on: macos-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha256: ${{ steps.pkg.outputs.sha256 }}
+      dmg: ${{ steps.pkg.outputs.dmg }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build universal app bundle
+        run: pnpm tauri build --target universal-apple-darwin
+
+      # Tauri は universal バイナリの .dmg を universal-apple-darwin 配下に出力する。
+      - name: Package dmg
+        id: pkg
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SRC=$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
+          DMG="claude-token-${VERSION}-universal.dmg"
+          cp "$SRC" "$DMG"
+          SHA=$(shasum -a 256 "$DMG" | awk '{print $1}')
+          echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg
+          path: ${{ steps.pkg.outputs.dmg }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dmg
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: "*.dmg"
+          generate_release_notes: true
+
+  update-tap:
+    name: Update Homebrew Cask
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write and push cask
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
+          SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/ayuayuyu/homebrew-tap.git" tap
+          mkdir -p tap/Casks
+          # 単一の真実: packaging/claude-token.rb のプレースホルダを置換して tap に書き出す。
+          sed -e "s/__VERSION__/${VERSION}/" -e "s/__SHA256__/${SHA256}/" \
+            packaging/claude-token.rb > tap/Casks/claude-token.rb
+
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/claude-token.rb
+          git commit -m "chore: update claude-token cask to v${VERSION}"
+          git push
