@@ -13,7 +13,7 @@ use usage::Usage;
 
 const TRAY_ID: &str = "main-tray";
 /// 通常時の自動更新間隔 (5 分)。usage API は短時間連投すると 429 になりやすい。
-const REFRESH_INTERVAL_SECS: u64 = 90;
+const REFRESH_INTERVAL_SECS: u64 = 60;
 /// 429 (レート制限) を踏んだ後のバックオフ (15 分)。
 const RATE_LIMIT_BACKOFF_SECS: u64 = 900;
 

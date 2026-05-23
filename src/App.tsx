@@ -11,7 +11,7 @@ function App() {
       <header className="header" data-tauri-drag-region>
         <div className="header-text">
           <div className="title">Claude Usage</div>
-          <div className="subtitle">live · refresh 90s</div>
+          <div className="subtitle">live · refresh 60s</div>
         </div>
       </header>
 
