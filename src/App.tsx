@@ -9,7 +9,6 @@ function App() {
     // data-tauri-drag-region: 枠なしウィンドウをドラッグで移動できるようにする。
     <main className="widget" data-tauri-drag-region>
       <header className="header" data-tauri-drag-region>
-        <img src="/ayuayuyu.png" alt="" className="avatar" draggable={false} />
         <div className="header-text">
           <div className="title">Claude Usage</div>
           <div className="subtitle">live · refresh 90s</div>
@@ -21,7 +20,6 @@ function App() {
       {!loading && !error && usage && <UsageCard usage={usage} />}
 
       <footer className="footer">
-        <span className="footer-dot" />
         <span className="footer-handle">@ayuayuyu</span>
       </footer>
     </main>
