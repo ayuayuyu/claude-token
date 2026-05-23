@@ -1,5 +1,5 @@
 import type { Usage } from "../types";
-import { faceOf, formatReset } from "../types";
+import { formatReset, levelOf } from "../types";
 import { RingGauge } from "./RingGauge";
 
 interface Props {
@@ -10,22 +10,29 @@ interface Props {
 export function UsageCard({ usage }: Props) {
   const fivePct = usage.five_hour?.utilization ?? 0;
   const sevenPct = usage.seven_day?.utilization ?? 0;
-  // 表情は逼迫している方の枠に合わせる。
-  const face = faceOf(Math.max(fivePct, sevenPct));
+  // ムードは逼迫している方の枠に合わせる。
+  const worst = Math.max(fivePct, sevenPct);
+  const mood = levelOf(worst);
 
   return (
-    <div className="card">
-      <div className="face">{face}</div>
+    <div className={`card mood-${mood}`}>
+      <div className={`mood-avatar mood-avatar-${mood}`}>
+        <img src="/ayuayuyu.png" alt="" draggable={false} />
+      </div>
       <div className="rings">
         <RingGauge
           pct={fivePct}
           label="5h"
-          caption={formatReset(usage.five_hour?.resets_at ?? null)}
+          caption={`reset ${formatReset(usage.five_hour?.resets_at ?? null)}`}
+          idKey="five"
+          size={82}
         />
         <RingGauge
           pct={sevenPct}
           label="7d"
-          caption={formatReset(usage.seven_day?.resets_at ?? null)}
+          caption={`reset ${formatReset(usage.seven_day?.resets_at ?? null)}`}
+          idKey="seven"
+          size={82}
         />
       </div>
     </div>

@@ -15,14 +15,16 @@
       {
         "label": "main",
         "title": "Claude Token",
-        "width": 240,
-        "height": 320,
+        "width": 260,
+        "height": 280,
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "resizable": false,
-        "shadow": false
+        "shadow": false,
+        "visible": false,
+        "focus": false
       }
     ],
     "security": {

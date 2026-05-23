@@ -26,19 +26,8 @@ const LEVEL_COLOR: Record<Level, string> = {
   critical: "#f87171", // red
 };
 
-const LEVEL_FACE: Record<Level, string> = {
-  calm: "(˶ᵔ ᵕ ᵔ˶)",
-  normal: "(๑•‿•๑)",
-  warn: "(˶°ㅁ°)",
-  critical: "(╯°□°)╯",
-};
-
 export function colorOf(pct: number): string {
   return LEVEL_COLOR[levelOf(pct)];
-}
-
-export function faceOf(pct: number): string {
-  return LEVEL_FACE[levelOf(pct)];
 }
 
 /** ISO8601 のリセット時刻を "15:30" / "5/26 15:00" 形式に整形する。 */
