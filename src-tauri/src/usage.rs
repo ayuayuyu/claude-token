@@ -44,9 +44,42 @@ impl Usage {
     }
 }
 
+/// usage API 呼び出しで発生し得るエラーをカテゴリ別に表す。
+/// 429 (レート制限) を呼び出し側で識別してバックオフできるよう独立列挙する。
+#[derive(Debug)]
+pub enum UsageError {
+    Token(String),
+    Request(String),
+    /// 429 Too Many Requests。
+    RateLimited,
+    /// その他の HTTP ステータスエラー。
+    Status(u16),
+    Parse(String),
+}
+
+impl std::fmt::Display for UsageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UsageError::Token(s) => write!(f, "{s}"),
+            UsageError::Request(s) => write!(f, "usage API へのリクエストに失敗: {s}"),
+            UsageError::RateLimited => {
+                write!(f, "レート制限中 (429)。次回更新まで待機します")
+            }
+            UsageError::Status(s) => write!(f, "usage API がエラーを返しました: {s}"),
+            UsageError::Parse(s) => write!(f, "usage レスポンスの解析に失敗: {s}"),
+        }
+    }
+}
+
+impl UsageError {
+    pub fn is_rate_limited(&self) -> bool {
+        matches!(self, UsageError::RateLimited)
+    }
+}
+
 /// usage API を呼び出して使用率を取得する。
-pub async fn fetch_usage() -> Result<Usage, String> {
-    let token = keychain::get_access_token()?;
+pub async fn fetch_usage() -> Result<Usage, UsageError> {
+    let token = keychain::get_access_token().map_err(UsageError::Token)?;
 
     let client = reqwest::Client::new();
     let resp = client
@@ -55,14 +88,17 @@ pub async fn fetch_usage() -> Result<Usage, String> {
         .header("anthropic-beta", OAUTH_BETA)
         .send()
         .await
-        .map_err(|e| format!("usage API へのリクエストに失敗: {e}"))?;
+        .map_err(|e| UsageError::Request(e.to_string()))?;
 
     let status = resp.status();
+    if status.as_u16() == 429 {
+        return Err(UsageError::RateLimited);
+    }
     if !status.is_success() {
-        return Err(format!("usage API がエラーを返しました: {status}"));
+        return Err(UsageError::Status(status.as_u16()));
     }
 
     resp.json::<Usage>()
         .await
-        .map_err(|e| format!("usage レスポンスの解析に失敗: {e}"))
+        .map_err(|e| UsageError::Parse(e.to_string()))
 }
