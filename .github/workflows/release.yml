@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 env:
   REPO: ayuayuyu/claude-token
@@ -21,7 +22,27 @@ jobs:
 
       - name: Extract version
         id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            # workflow_dispatch などタグ無し実行時は package.json から取る（試走用）
+            VERSION=$(node -p "require('./package.json').version")
+            echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check version consistency
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          CONF=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          CARGO=$(awk -F'"' '/^version = / {print $2; exit}' src-tauri/Cargo.toml)
+          echo "tag=$TAG  package.json=$PKG  tauri.conf.json=$CONF  Cargo.toml=$CARGO"
+          if [ "$TAG" != "$PKG" ] || [ "$TAG" != "$CONF" ] || [ "$TAG" != "$CARGO" ]; then
+            echo "::error::Version mismatch between git tag and source files"
+            exit 1
+          fi
 
       - uses: pnpm/action-setup@v4
         with:
@@ -66,6 +87,7 @@ jobs:
   release:
     name: Create GitHub Release
     needs: build
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -77,10 +99,21 @@ jobs:
         with:
           files: "*.dmg"
           generate_release_notes: true
+          append_body: true
+          body: |
+            ## Verify download
+
+            このビルドは未署名です。ダウンロード後に SHA256 を検証してください:
+
+            ```
+            shasum -a 256 ${{ needs.build.outputs.dmg }}
+            # 期待値: ${{ needs.build.outputs.sha256 }}
+            ```
 
   update-tap:
     name: Update Homebrew Cask
     needs: [build, release]
+    if: startsWith(github.ref, 'refs/tags/') && success()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
