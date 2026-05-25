@@ -13,7 +13,7 @@ use usage::Usage;
 
 const TRAY_ID: &str = "main-tray";
 /// 通常時の自動更新間隔 (5 分)。usage API は短時間連投すると 429 になりやすい。
-const REFRESH_INTERVAL_SECS: u64 = 60;
+const REFRESH_INTERVAL_SECS: u64 = 90;
 /// 429 (レート制限) を踏んだ後のバックオフ (15 分)。
 const RATE_LIMIT_BACKOFF_SECS: u64 = 900;
 
@@ -81,6 +81,11 @@ fn toggle_window(app: &AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(tauri_plugin_window_state::StateFlags::POSITION)
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![get_usage])
         .setup(|app| {
             // --- macOS: Dock から消してメニューバー常駐アプリにする ---
@@ -98,6 +103,32 @@ pub fn run() {
                         api.prevent_close();
                     }
                 });
+            }
+
+            // --- 初回起動時のみ右上に配置。以降は window-state プラグインが復元する ---
+            let has_saved_state = app
+                .path()
+                .app_config_dir()
+                .ok()
+                .map(|p| p.join(".window-state.json").exists())
+                .unwrap_or(false);
+
+            if let Some(window) = app.get_webview_window("main") {
+                if !has_saved_state {
+                    if let Ok(Some(monitor)) = app.primary_monitor() {
+                        let phys = monitor.size();
+                        let scale = monitor.scale_factor();
+                        let logical_w = phys.width as f64 / scale;
+                        let window_w = 260.0;
+                        let margin_x = 24.0;
+                        let margin_y = 44.0;
+                        let x = (logical_w - window_w - margin_x).max(0.0);
+                        let _ = window.set_position(tauri::LogicalPosition::new(x, margin_y));
+                    }
+                }
+                // 念のため明示的にも前面表示
+                let _ = window.show();
+                let _ = window.set_always_on_top(true);
             }
 
             // --- トレイメニュー (右クリック) ---

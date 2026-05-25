@@ -76,9 +76,14 @@ pnpm tauri build    # .app / .dmg を生成 (src-tauri/target/release/bundle/)
 GUI アプリなので Formula ではなく **Cask** で配布する。**未署名**のため Gatekeeper 対策が要る。
 
 ```bash
-# 利用者側
-brew tap ayuayuyu/tap
-brew install --cask --no-quarantine claude-token   # 未署名なので --no-quarantine が必須
+# 利用者側（Homebrew 4.4+ では --no-quarantine フラグが廃止されたため、以下のいずれか）
+
+# 方法 1: 通常 install 後に隔離属性を外す（推奨）
+brew install --cask ayuayuyu/tap/claude-token
+xattr -dr com.apple.quarantine "/Applications/claude-token.app"
+
+# 方法 2: 環境変数で渡す
+HOMEBREW_CASK_OPTS="--no-quarantine" brew install --cask ayuayuyu/tap/claude-token
 ```
 
 ### リリースフロー（CI 完全自動）
